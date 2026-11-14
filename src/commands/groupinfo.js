@@ -1,3 +1,5 @@
+import { getMeta } from '../lib/utils.js';
+
 export default {
   name: 'groupinfo',
   aliases: ['ginfo'],
@@ -5,7 +7,7 @@ export default {
   desc: 'Group details',
   group: true,
   async run({ sock, jid, reply }) {
-    const m = await sock.groupMetadata(jid);
+    const m = await getMeta(sock, jid);
     const admins = m.participants.filter((p) => p.admin).length;
     const created = m.creation ? new Date(m.creation * 1000).toISOString().slice(0, 10) : '-';
     await reply(

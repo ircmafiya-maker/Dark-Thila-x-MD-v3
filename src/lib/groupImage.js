@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { config } from '../config.js';
 import { findMedia, downloadFromMessage } from './media.js';
 import { updateGroup, imgPath } from './groupSettings.js';
 
@@ -22,7 +23,7 @@ export function makeSetImageCommand(kind) {
       if (!m) return reply(`Image ekak ${prefix}${name} caption ekka yawanna, nathnam image ekakata reply karanna.\nRemove: ${prefix}${name} off`);
       try {
         const buf = await downloadFromMessage(sock, m.fake);
-        fs.mkdirSync('data', { recursive: true });
+        fs.mkdirSync(config.dataDir, { recursive: true });
         fs.writeFileSync(imgPath(jid, kind), buf);
         await updateGroup(jid, (g) => { g[flag] = true; if (kind === 'welcome') g.welcomeOn = true; if (kind === 'goodbye') g.welcomeOn = true; });
         await reply(`✅ ${kind} picture saved (welcome is ON).`);

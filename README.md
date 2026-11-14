@@ -51,4 +51,6 @@ Notes:
 ## Rules learned the hard way
 - Never add fake `forwardedNewsletterMessageInfo`: WhatsApp silently drops the message.
 - Use `sendImage()` instead of inline `{ image: { url } }`.
-- Admin checks compare phone digits and fail open (see `isAdmin`).
+- Admin checks compare phone digits (see `isAdmin`). Command permission checks fail CLOSED; moderation (antilink/antiflood) fails open so a real admin is never punished.
+- Group metadata is cached for 5 min (`getMeta`) and refreshed by `src/events/groupmeta.js`. Use `getMeta(sock, jid)` instead of `sock.groupMetadata(jid)`.
+- `ctx.argText` = text after the command with line breaks kept (use it for multi-line texts).

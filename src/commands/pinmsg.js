@@ -11,7 +11,11 @@ export default {
     if (!ctxInfo?.stanzaId) return reply(`Pin karanna one message ekata reply karanna.\nUsage: ${prefix}pinmsg [24h | 7d | 30d]`);
     let secs = 86400;
     const m = (args[0] || '').toLowerCase().match(/^(\d+)([hd])?$/);
-    if (m) secs = Math.min(Math.max(Number(m[1]) * (m[2] === 'd' ? 86400 : 3600), 3600), 30 * 86400);
+    if (m) {
+      const want = Number(m[1]) * (m[2] === 'd' ? 86400 : 3600);
+      // WhatsApp only supports 24h, 7d and 30d: pick the closest one that covers the request
+      secs = want <= 86400 ? 86400 : want <= 7 * 86400 ? 7 * 86400 : 30 * 86400;
+    }
     try {
       const fromMe = digits(ctxInfo.participant) === digits(sock.user?.id);
       await sock.sendMessage(jid, { pin: { key: { remoteJid: jid, fromMe, id: ctxInfo.stanzaId, participant: ctxInfo.participant }, type: 1, time: secs } });

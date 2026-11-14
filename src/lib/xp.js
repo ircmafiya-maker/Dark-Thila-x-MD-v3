@@ -21,7 +21,13 @@ export const rankBadge = (lvl) => {
 const store = (groupJid) => `xp-${groupJid.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
 /** Adds XP (1 min cooldown). Returns { leveled, newLevel, xp } or null if on cooldown. */
+const lastXp = new Map(); // "group|user" -> timestamp (in memory: no file I/O on every chat message)
+
 export async function addXp(groupJid, userJid) {
+  const ck = `${groupJid}|${userJid}`;
+  if (Date.now() - (lastXp.get(ck) || 0) < COOLDOWN_MS) return null;
+  lastXp.set(ck, Date.now());
+  if (lastXp.size > 5000) lastXp.delete(lastXp.keys().next().value);
   let result = null;
   await updateJson(store(groupJid), (data) => {
     const now = Date.now();

@@ -30,10 +30,22 @@ const passwordOk = (pw) =>
 // 6 wrong passwords per IP -> 10 minute lockout
 const fails = new Map();
 const ipOf = (req) => String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
-function locked(ip) { const f = fails.get(ip); return f && f.n >= 6 && f.until > Date.now(); }
+// X-Forwarded-For can be forged by the client, so a global cap backs up the per-IP one.
+const GLOBAL_MAX = 30;
+const global = { n: 0, until: 0 };
+function locked(ip) {
+  const now = Date.now();
+  if (global.n >= GLOBAL_MAX && global.until > now) return true;
+  const f = fails.get(ip);
+  return !!f && f.n >= 6 && f.until > now;
+}
 function failed(ip) {
-  const f = fails.get(ip) || { n: 0, until: 0 };
-  f.n += 1; f.until = Date.now() + 10 * 60 * 1000; fails.set(ip, f);
+  const now = Date.now();
+  const f = fails.get(ip);
+  const cur = f && f.until > now ? f : { n: 0, until: 0 }; // an expired entry starts again from 0
+  cur.n += 1; cur.until = now + 10 * 60 * 1000; fails.set(ip, cur);
+  if (global.until < now) global.n = 0;
+  global.n += 1; global.until = now + 10 * 60 * 1000;
 }
 setInterval(() => { for (const [k, v] of fails) if (v.until < Date.now()) fails.delete(k); }, 60000).unref();
 
@@ -177,8 +189,8 @@ async function route(req, res) {
         const all = await runtime.sock.groupFetchAllParticipating();
         groupCache = {
           at: Date.now(),
-          data: Object.values(all).map((g) => ({ id: g.id, name: g.subject, size: g.participants?.length || 0 }))
-            .sort((a, b) => a.name.localeCompare(b.name)),
+          data: Object.values(all).map((g) => ({ id: g.id, name: g.subject || g.id, size: g.participants?.length || 0 }))
+            .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''))),
         };
       }
       return json(res, 200, { groups: groupCache.data });

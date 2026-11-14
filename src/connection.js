@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import pino from 'pino';
+import QRCode from 'qrcode';
 import {
   makeWASocket,
   fetchLatestBaileysVersion,
@@ -15,6 +16,7 @@ import { useMongoAuthState, deleteMongoAuthState } from './auth/mongo.js';
 import { handleMessage } from './handler.js';
 import { registerEvents } from './events/index.js';
 import { runtime } from './lib/runtime.js';
+import { peekMeta } from './lib/utils.js';
 
 const logger = pino({ level: 'silent' });
 const BASE_DELAY = 3000;
@@ -22,6 +24,22 @@ const MAX_DELAY = 60000;
 
 let retry = 0;
 let closeAuth = null;
+let reconnectTimer = null;
+
+/** One pending reconnect at a time (two overlapping startBot() calls would fight over the session). */
+const scheduleStart = (ms) => {
+  clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(() => startBot().catch((e) => {
+    console.error('[bot] start failed:', e?.message || e);
+    scheduleStart(10000);
+  }), ms);
+};
+
+/** Flush the session to disk / Mongo (called on SIGTERM so a redeploy never loses fresh keys). */
+export async function shutdown() {
+  clearTimeout(reconnectTimer);
+  try { await closeAuth?.(); } catch (_) {}
+}
 const msgCache = new Map(); // small cache for getMessage()
 
 async function clearSession() {
@@ -57,7 +75,7 @@ export async function startBot() {
     version,
     auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, logger) },
     browser: unregistered ? Browsers.ubuntu('Chrome') : [config.botName, 'Chrome', '136.0.0.0'],
-    printQRInTerminal: unregistered && !config.pairNumber,
+    cachedGroupMetadata: async (jid) => peekMeta(jid),
     logger,
     connectTimeoutMs: 60000,
     keepAliveIntervalMs: 30000,
@@ -90,7 +108,15 @@ export async function startBot() {
   }
 
   sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
-    if (qr) { runtime.qrSeen = true; runtime.qr = qr; runtime.qrAt = Date.now(); }
+    if (qr) {
+      runtime.qrSeen = true; runtime.qr = qr; runtime.qrAt = Date.now();
+      // printQRInTerminal was removed from Baileys 7, so draw the QR ourselves
+      if (!config.pairNumber) {
+        QRCode.toString(qr, { type: 'terminal', small: true })
+          .then((art) => console.log(`\nScan with WhatsApp > Linked devices:\n${art}`))
+          .catch(() => {});
+      }
+    }
     if (connection === 'open') {
       retry = 0;
       runtime.status = 'online';
@@ -112,15 +138,15 @@ export async function startBot() {
         runtime.status = 'logged_out';
         runtime.user = null;
         await clearSession();
-        return setTimeout(startBot, 1500);
+        return scheduleStart(1500);
       }
-      if (code === DisconnectReason.restartRequired) return setTimeout(startBot, 800);
+      if (code === DisconnectReason.restartRequired) return scheduleStart(800);
 
       retry++;
       const exp = Math.min(BASE_DELAY * 2 ** (retry - 1), MAX_DELAY);
       const delay = Math.max(BASE_DELAY, exp + exp * 0.2 * (Math.random() * 2 - 1));
       console.log(`[bot] connection closed (${code}), reconnecting in ${Math.round(delay / 1000)}s`);
-      setTimeout(startBot, delay);
+      scheduleStart(delay);
     }
   });
 

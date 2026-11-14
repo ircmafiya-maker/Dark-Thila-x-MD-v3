@@ -61,20 +61,51 @@ export async function sendImage(sock, jid, url, caption, quoted) {
  * - Compares phone digits as well as raw JID (WhatsApp mixes @lid and @s.whatsapp.net).
  * - FAILS OPEN on metadata errors: an API hiccup must never punish a real admin.
  */
-export async function isAdmin(sock, groupJid, userJid) {
+export async function isAdmin(sock, groupJid, userJid, { failOpen = true } = {}) {
   try {
-    const meta = await sock.groupMetadata(groupJid);
+    const meta = await getMeta(sock, groupJid);
     const want = digits(userJid);
+    if (!want) return false;
     return meta.participants.some(
       (p) =>
         (p.admin === 'admin' || p.admin === 'superadmin') &&
         [p.id, p.phoneNumber, p.lid].filter(Boolean).some((id) => id === userJid || digits(id) === want)
     );
   } catch (err) {
-    console.error('[isAdmin] metadata failed, failing open:', err?.message);
-    return true;
+    console.error(`[isAdmin] metadata failed, failing ${failOpen ? 'open' : 'closed'}:`, err?.message);
+    return failOpen;
   }
 }
+
+/** Is the bot itself an admin of this group? (needed for kick / delete / warn...) */
+export async function isBotAdmin(sock, groupJid) {
+  try {
+    const meta = await getMeta(sock, groupJid);
+    const mine = [sock.user?.id, sock.user?.lid].filter(Boolean).map(digits);
+    return meta.participants.some(
+      (p) =>
+        (p.admin === 'admin' || p.admin === 'superadmin') &&
+        [p.id, p.phoneNumber, p.lid].filter(Boolean).some((id) => mine.includes(digits(id)))
+    );
+  } catch (_) {
+    return true; // unknown: let the action try
+  }
+}
+
+// ── group metadata cache (stops one WhatsApp request per command / message) ──
+const META_TTL = 5 * 60 * 1000;
+const metaCache = new Map(); // jid -> { at, meta }
+
+export async function getMeta(sock, groupJid) {
+  const hit = metaCache.get(groupJid);
+  if (hit && Date.now() - hit.at < META_TTL) return hit.meta;
+  const meta = await sock.groupMetadata(groupJid);
+  metaCache.set(groupJid, { at: Date.now(), meta });
+  if (metaCache.size > 300) metaCache.delete(metaCache.keys().next().value);
+  return meta;
+}
+export const peekMeta = (groupJid) => metaCache.get(groupJid)?.meta;
+export const invalidateMeta = (groupJid) => metaCache.delete(groupJid);
 
 /** Per-key async queue so read-modify-write on the same key never races. */
 const queues = new Map();

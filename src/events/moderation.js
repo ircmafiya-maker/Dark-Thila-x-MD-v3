@@ -1,5 +1,5 @@
 import { config } from '../config.js';
-import { getText, isGroup, digits, isAdmin } from '../lib/utils.js';
+import { getText, isGroup, digits, isAdmin, isBotAdmin } from '../lib/utils.js';
 import { getGroup } from '../lib/groupSettings.js';
 import { addWarn, deleteMsg } from '../lib/moderation.js';
 
@@ -27,7 +27,11 @@ export default function moderation(sock) {
     if (!g.antilink && !g.antiflood && !g.muted.length) return;
 
     const who = digits(sender);
-    if (config.ownerNumber && who === config.ownerNumber) return;
+    const ids = [sender, msg.key.participantAlt].filter(Boolean).map(digits);
+    if (config.ownerNumber && ids.includes(config.ownerNumber)) return;
+
+    // without admin rights the bot can't delete or kick anything: don't spam warnings
+    if (!(await isBotAdmin(sock, jid))) return;
 
     // muted member: just delete
     if (g.muted.includes(who)) return void deleteMsg(sock, jid, msg.key);

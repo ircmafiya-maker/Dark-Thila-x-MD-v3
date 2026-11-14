@@ -14,6 +14,7 @@ const MAX_AGE_MS = 3 * 24 * 3600 * 1000; // refresh yt-dlp every 3 days (YouTube
 
 let binPath = process.env.YTDLP_PATH || LOCAL_BIN;
 let ensuring = null;
+let checkedAt = 0;
 
 function assetName() {
   if (process.platform === 'linux') return process.arch === 'arm64' ? 'yt-dlp_linux_aarch64' : 'yt-dlp_linux';
@@ -25,7 +26,9 @@ function assetName() {
 /** Downloads the latest standalone yt-dlp (no python needed on Linux) if missing/old. */
 export function ensureYtDlp() {
   if (process.env.YTDLP_PATH) return Promise.resolve(binPath);
-  if (ensuring) return ensuring;
+  // re-check once the binary is older than MAX_AGE_MS (a long-running process used to never refresh it)
+  if (ensuring && Date.now() - checkedAt < MAX_AGE_MS) return ensuring;
+  checkedAt = Date.now();
   ensuring = (async () => {
     try {
       const fresh = fs.existsSync(LOCAL_BIN) && Date.now() - fs.statSync(LOCAL_BIN).mtimeMs < MAX_AGE_MS;
@@ -48,7 +51,7 @@ export function ensureYtDlp() {
     return binPath;
   })();
   // allow a retry on the next call if it failed completely
-  ensuring.finally(() => { if (!fs.existsSync(LOCAL_BIN)) ensuring = null; });
+  ensuring.finally(() => { if (!fs.existsSync(LOCAL_BIN)) { ensuring = null; checkedAt = 0; } });
   return ensuring;
 }
 
