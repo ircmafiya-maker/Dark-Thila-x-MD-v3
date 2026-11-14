@@ -1,16 +1,12 @@
-import http from 'http';
+import './src/lib/runtime.js'; // first: starts capturing logs for the admin panel
 import axios from 'axios';
 import { config } from './src/config.js';
 import { startBot } from './src/connection.js';
 import { ensureYtDlp } from './src/lib/ytdlp.js';
+import { startWebServer } from './src/web/server.js';
 
-// Tiny health server so Render/Heroku keep the service alive.
-http
-  .createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end(req.url === '/health' ? 'ok' : `${config.botName} is running`);
-  })
-  .listen(config.port, '0.0.0.0', () => console.log(`[http] listening on ${config.port}`));
+// Web: / (status) /pair (get pairing code) /admin (panel) /health (keep-alive)
+startWebServer();
 
 process.on('unhandledRejection', (e) => console.error('[unhandledRejection]', e));
 process.on('uncaughtException', (e) => console.error('[uncaughtException]', e));

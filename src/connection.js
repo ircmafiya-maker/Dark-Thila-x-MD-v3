@@ -14,6 +14,7 @@ import { useSQLiteAuthState } from './auth/sqlite.js';
 import { useMongoAuthState, deleteMongoAuthState } from './auth/mongo.js';
 import { handleMessage } from './handler.js';
 import { registerEvents } from './events/index.js';
+import { runtime } from './lib/runtime.js';
 
 const logger = pino({ level: 'silent' });
 const BASE_DELAY = 3000;
@@ -41,6 +42,7 @@ export async function startBot() {
       uri: config.mongoUri,
       sessionId: config.sessionId,
     }));
+    runtime.storage = 'mongodb';
     console.log('[auth] MongoDB (session survives redeploys)');
   } else {
     ({ state, saveCreds, close: closeAuth } = await useSQLiteAuthState(path.join(config.dataDir, 'auth.db')));
@@ -48,13 +50,14 @@ export async function startBot() {
   }
 
   const { version } = await fetchLatestBaileysVersion();
-  const usePairing = !!config.pairNumber && !state.creds?.registered;
+  const unregistered = !state.creds?.registered;
+  const autoPair = unregistered && !!config.pairNumber; // PAIR_NUMBER set: code printed in the log
 
   const sock = makeWASocket({
     version,
     auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, logger) },
-    browser: usePairing ? Browsers.ubuntu('Chrome') : [config.botName, 'Chrome', '136.0.0.0'],
-    printQRInTerminal: !usePairing,
+    browser: unregistered ? Browsers.ubuntu('Chrome') : [config.botName, 'Chrome', '136.0.0.0'],
+    printQRInTerminal: unregistered && !config.pairNumber,
     logger,
     connectTimeoutMs: 60000,
     keepAliveIntervalMs: 30000,
@@ -68,10 +71,17 @@ export async function startBot() {
 
   sock.ev.on('creds.update', saveCreds);
 
-  if (usePairing) {
+  runtime.sock = sock;
+  runtime.registered = !unregistered;
+  runtime.qrSeen = false;
+  runtime.status = 'connecting';
+
+  if (autoPair) {
     setTimeout(async () => {
       try {
         const code = await sock.requestPairingCode(config.pairNumber);
+        runtime.pairCode = code;
+        runtime.pairCodeAt = Date.now();
         console.log(`\n[pair] Pairing code: ${code}\n(WhatsApp > Linked devices > Link with phone number)\n`);
       } catch (err) {
         console.error('[pair] failed:', err?.message || err);
@@ -79,17 +89,26 @@ export async function startBot() {
     }, 4000);
   }
 
-  sock.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
+  sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
+    if (qr) runtime.qrSeen = true;
     if (connection === 'open') {
       retry = 0;
+      runtime.status = 'online';
+      runtime.registered = true;
+      runtime.user = sock.user;
+      runtime.pairCode = null;
       console.log(`[bot] ${config.botName} connected as ${sock.user?.id}`);
     }
     if (connection === 'close') {
       const code = lastDisconnect?.error?.output?.statusCode;
+      runtime.status = 'reconnecting';
+      runtime.qrSeen = false;
       try { await closeAuth?.(); } catch (_) {}
 
       if (code === DisconnectReason.loggedOut || code === DisconnectReason.badSession) {
         console.log('[bot] logged out / bad session, clearing session and restarting');
+        runtime.status = 'logged_out';
+        runtime.user = null;
         await clearSession();
         return setTimeout(startBot, 1500);
       }

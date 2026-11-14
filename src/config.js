@@ -11,5 +11,7 @@ export const config = {
   mongoUri: process.env.MONGODB_URI || '',
   sessionId: process.env.SESSION_ID || 'main',
   port: Number(process.env.PORT) || 8080,
+  adminPassword: process.env.ADMIN_PASSWORD || '',
+  pairPublic: String(process.env.PAIR_PUBLIC || '').toLowerCase() === 'true',
   dataDir: 'data',
 };
