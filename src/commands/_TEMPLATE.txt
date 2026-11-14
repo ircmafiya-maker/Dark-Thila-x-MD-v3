@@ -1,0 +1,14 @@
+// New command = new file in src/commands/ (auto-loaded). Copy this into hello.js:
+
+export default {
+  name: 'hello',          // .hello
+  aliases: ['hi'],        // .hi
+  category: 'fun',        // used by .menu
+  desc: 'Say hello',
+  group: false,           // true = groups only
+  admin: false,           // true = group admins only
+  owner: false,           // true = bot owner only
+  async run({ reply, args, sender, sock, jid, msg }) {
+    await reply(`Hello ${args.join(' ') || 'there'}!`);
+  },
+};
