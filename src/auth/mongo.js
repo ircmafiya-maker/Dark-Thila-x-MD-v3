@@ -310,3 +310,20 @@ export async function deleteMongoAuthState({ uri, sessionId }) {
     console.error('[deleteMongoAuthState] error:', e?.message || e);
   }
 }
+
+
+/** Collection helper for session metadata (shares the auth connection). */
+export async function mongoCollection(uri, name) {
+  const client = await _getClient(uri);
+  return client.db().collection(name);
+}
+
+/** Session ids stored in Mongo: ids matching `prefix` plus any of `exact`. */
+export async function listMongoSessionIds({ uri, prefix, exact = [] }) {
+  const col = await mongoCollection(uri, 'bot_creds');
+  const esc = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const rows = await col
+    .find({ $or: [{ _id: { $regex: `^${esc}` } }, ...(exact.length ? [{ _id: { $in: exact } }] : [])] }, { projection: { _id: 1 } })
+    .toArray();
+  return rows.map((r) => String(r._id));
+}

@@ -1,11 +1,11 @@
 import './src/lib/runtime.js'; // first: starts capturing logs for the admin panel
 import axios from 'axios';
 import { config } from './src/config.js';
-import { startBot, shutdown } from './src/connection.js';
+import { bootSessions } from './src/connection.js';
 import { ensureYtDlp } from './src/lib/ytdlp.js';
 import { startWebServer } from './src/web/server.js';
 
-// Web: / (status) /pair (get pairing code) /admin (panel) /health (keep-alive)
+// Web: /pair (link a number) /dashboard (each user's own panel) /admin (platform owner) /health (keep-alive)
 startWebServer();
 
 process.on('unhandledRejection', (e) => console.error('[unhandledRejection]', e));
@@ -21,14 +21,5 @@ if (selfUrl) {
   console.log(`[keep-alive] pinging ${selfUrl} every 10 min`);
 }
 
-// Render sends SIGTERM on redeploy: flush the WhatsApp session first
-for (const sig of ['SIGTERM', 'SIGINT']) {
-  process.on(sig, async () => {
-    console.log(`[${sig}] shutting down...`);
-    await Promise.race([shutdown(), new Promise((r) => setTimeout(r, 5000))]);
-    process.exit(0);
-  });
-}
-
 ensureYtDlp(); // download latest yt-dlp in the background
-startBot().catch((e) => console.error('[bot] start failed:', e?.message || e));
+bootSessions().catch((e) => console.error('[boot]', e)); // restarts every saved session

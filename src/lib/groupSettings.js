@@ -1,5 +1,5 @@
 import path from 'path';
-import { readJson, updateJson } from './store.js';
+import { readJson, updateJson, sessionDataDir } from './store.js';
 import { config } from '../config.js';
 
 const file = (jid) => `group-${jid.replace(/[^a-zA-Z0-9]/g, '_')}`;
@@ -29,4 +29,4 @@ export const updateGroup = (jid, mutate) =>
 
 /** Where a group's welcome/goodbye picture lives. kind = 'welcome' | 'goodbye' */
 export const imgPath = (jid, kind) =>
-  path.join(config.dataDir, `img-${jid.replace(/[^a-zA-Z0-9]/g, '_')}-${kind}.jpg`);
+  path.join(sessionDataDir(), `img-${jid.replace(/[^a-zA-Z0-9]/g, '_')}-${kind}.jpg`);
