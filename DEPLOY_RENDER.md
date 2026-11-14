@@ -4,8 +4,9 @@
 2. MongoDB Atlas (free): create a cluster, a DB user, allow `0.0.0.0/0` network access, copy the connection string -> `MONGODB_URI`.
 3. Render -> New -> **Blueprint** -> pick the repo (reads `render.yaml`). Or New -> Web Service with
    Build `npm install`, Start `npm start`, Health check path `/health`.
-4. Fill the env vars: `OWNER_NUMBER`, `PAIR_NUMBER`, `MONGODB_URI` (digits only for numbers).
-5. Deploy, open the Logs tab: the **pairing code** is printed. WhatsApp -> Linked devices -> Link with phone number -> enter the code.
+4. Fill the env vars: `OWNER_NUMBER`, `MONGODB_URI`, `ADMIN_PASSWORD` (digits only for numbers). `PAIR_NUMBER` is optional now.
+5. Deploy, then open `https://<app>.onrender.com/pair`, enter the bot number + `ADMIN_PASSWORD`, get the **pairing code**
+   and enter it in WhatsApp -> Linked devices -> Link with phone number. (If `PAIR_NUMBER` is set the code is also printed in Logs.)
 6. After pairing, the session is stored in Mongo, so redeploys/restarts won't need pairing again.
 
 Notes
@@ -15,3 +16,9 @@ Notes
 - Free web services sleep after 15 min idle. The built-in self-ping (index.js) prevents that; an external
   pinger (UptimeRobot on `https://<app>.onrender.com/health`) makes it more reliable.
 - Downloaders: yt-dlp downloads itself into `bin/` at start. YouTube from datacenter IPs often asks for login -> add `cookies.txt`.
+
+## Web panel
+- `/` status, `/health` keep-alive.
+- `/pair` pairing code page (needs `ADMIN_PASSWORD` unless `PAIR_PUBLIC=true`).
+- `/admin` dashboard: status, public/private mode, restart, logout WhatsApp (re-pair), send message,
+  group list, commands, live logs. 6 wrong passwords = 10 min lockout. Use a long password.

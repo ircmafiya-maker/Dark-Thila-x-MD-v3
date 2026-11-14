@@ -22,5 +22,9 @@ services:
         sync: false
       - key: PAIR_NUMBER    # digits only, number the bot runs on
         sync: false
+      - key: ADMIN_PASSWORD  # password for /admin and /pair
+        sync: false
+      - key: PAIR_PUBLIC     # true = /pair needs no password (not recommended)
+        value: "false"
       - key: MONGODB_URI    # needed so the session survives redeploys
         sync: false
