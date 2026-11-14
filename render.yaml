@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: dark-thila-xmd
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: BOT_NAME
+        value: DARK THILA X MD
+      - key: PREFIX
+        value: "."
+      - key: MODE
+        value: public
+      - key: SESSION_ID
+        value: main
+      - key: OWNER_NUMBER   # digits only, e.g. 94771234567
+        sync: false
+      - key: PAIR_NUMBER    # digits only, number the bot runs on
+        sync: false
+      - key: MONGODB_URI    # needed so the session survives redeploys
+        sync: false
