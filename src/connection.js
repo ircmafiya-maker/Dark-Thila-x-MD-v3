@@ -90,19 +90,21 @@ export async function startBot() {
   }
 
   sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
-    if (qr) runtime.qrSeen = true;
+    if (qr) { runtime.qrSeen = true; runtime.qr = qr; runtime.qrAt = Date.now(); }
     if (connection === 'open') {
       retry = 0;
       runtime.status = 'online';
       runtime.registered = true;
       runtime.user = sock.user;
       runtime.pairCode = null;
+      runtime.qr = null;
       console.log(`[bot] ${config.botName} connected as ${sock.user?.id}`);
     }
     if (connection === 'close') {
       const code = lastDisconnect?.error?.output?.statusCode;
       runtime.status = 'reconnecting';
       runtime.qrSeen = false;
+      runtime.qr = null;
       try { await closeAuth?.(); } catch (_) {}
 
       if (code === DisconnectReason.loggedOut || code === DisconnectReason.badSession) {
