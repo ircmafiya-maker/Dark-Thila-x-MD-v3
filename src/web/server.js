@@ -43,7 +43,7 @@ const SEC = {
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
   'Cache-Control': 'no-store',
-  'Content-Security-Policy': "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-ancestors 'none'",
+  'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-ancestors 'none'",
 };
 const html = (res, body, code = 200) => { res.writeHead(code, { ...SEC, 'Content-Type': 'text/html; charset=utf-8' }); res.end(body); };
 const json = (res, code, obj, headers = {}) => { res.writeHead(code, { ...SEC, 'Content-Type': 'application/json', ...headers }); res.end(JSON.stringify(obj)); };
@@ -73,6 +73,19 @@ async function commandList() {
   return cmdList;
 }
 
+// QR image (needs the `qrcode` package; cached per QR string)
+let QRLib;
+let qrCache = { text: '', url: '' };
+async function qrImage(text) {
+  if (qrCache.text === text) return qrCache.url;
+  if (QRLib === undefined) { try { QRLib = (await import('qrcode')).default; } catch { QRLib = null; } }
+  if (!QRLib) return null;
+  const url = await QRLib.toDataURL(text, { margin: 1, width: 420, errorCorrectionLevel: 'M' });
+  qrCache = { text, url };
+  return url;
+}
+const pairAllowed = (req) => config.pairPublic || isAdmin(req);
+
 let groupCache = { at: 0, data: [] };
 
 // ---- routes --------------------------------------------------------------
@@ -97,6 +110,14 @@ async function route(req, res) {
       passwordConfigured: !!config.adminPassword,
       loggedIn: isAdmin(req),
     });
+  }
+
+  if (key === 'GET /api/pair/qr') {
+    if (!pairAllowed(req)) return json(res, 401, { error: 'Locked' });
+    if (runtime.registered) return json(res, 200, { qr: null, error: 'Already linked' });
+    if (!runtime.qr || Date.now() - runtime.qrAt > 70000) return json(res, 200, { qr: null, error: 'Waiting for QR…' });
+    const qr = await qrImage(runtime.qr);
+    return json(res, 200, qr ? { qr } : { qr: null, error: 'QR support missing: run npm install (package "qrcode")' });
   }
 
   if (key === 'POST /api/pair') {
@@ -135,6 +156,7 @@ async function route(req, res) {
     if (key === 'GET /api/admin/status') {
       return json(res, 200, {
         status: runtime.status,
+        registered: runtime.registered,
         user: runtime.user?.id ? digits(runtime.user.id.split(':')[0]) : null,
         owner: config.ownerNumber,
         prefix: config.prefix,

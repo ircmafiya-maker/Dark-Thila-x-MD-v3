@@ -7,6 +7,8 @@ export const runtime = {
   status: 'starting', // starting | connecting | online | reconnecting | logged_out
   registered: false,
   qrSeen: false,      // socket is ready to accept a pairing request
+  qr: null,           // latest raw QR string from WhatsApp
+  qrAt: 0,
   user: null,
   storage: 'sqlite',
   pairCode: null,
