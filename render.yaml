@@ -12,19 +12,19 @@ services:
         value: 22
       - key: BOT_NAME
         value: DARK THILA X MD
-      - key: PREFIX
+      - key: PREFIX          # default prefix for new users (they can change it in their dashboard)
         value: "."
-      - key: MODE
+      - key: MODE            # default mode for new users: public | private
         value: public
-      - key: SESSION_ID
-        value: main
-      - key: OWNER_NUMBER   # digits only, e.g. 94771234567
+      - key: MAX_SESSIONS    # how many numbers can be linked (each uses ~40-80 MB RAM)
+        value: 10
+      - key: PAIR_PUBLIC     # true = anyone can link their own number on /pair
+        value: "true"
+      - key: OWNER_NUMBER    # your number, digits only, e.g. 94771234567
         sync: false
-      - key: PAIR_NUMBER    # digits only, number the bot runs on
+      - key: ADMIN_PASSWORD  # password for /admin (platform owner only)
         sync: false
-      - key: ADMIN_PASSWORD  # password for /admin and /pair
-        sync: false
-      - key: PAIR_PUBLIC     # true = /pair needs no password (not recommended)
-        value: "false"
-      - key: MONGODB_URI    # needed so the session survives redeploys
+      - key: SESSION_SECRET  # any long random text, keeps logins after restarts
+        generateValue: true
+      - key: MONGODB_URI     # needed so sessions survive redeploys
         sync: false

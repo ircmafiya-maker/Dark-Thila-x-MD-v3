@@ -1,24 +1,29 @@
-# Deploy to Render
+# Deploy to Render (multi-user bot)
 
-1. Push this project to a GitHub repo (`.env`, `data/`, `bin/` are git-ignored).
-2. MongoDB Atlas (free): create a cluster, a DB user, allow `0.0.0.0/0` network access, copy the connection string -> `MONGODB_URI`.
-3. Render -> New -> **Blueprint** -> pick the repo (reads `render.yaml`). Or New -> Web Service with
-   Build `npm install`, Start `npm start`, Health check path `/health`.
-4. Fill the env vars: `OWNER_NUMBER`, `MONGODB_URI`, `ADMIN_PASSWORD` (digits only for numbers). `PAIR_NUMBER` is optional now.
-5. Deploy, then open `https://<app>.onrender.com/pair`, enter the bot number + `ADMIN_PASSWORD`, get the **pairing code**
-   and enter it in WhatsApp -> Linked devices -> Link with phone number. (If `PAIR_NUMBER` is set the code is also printed in Logs.)
-6. After pairing, the session is stored in Mongo, so redeploys/restarts won't need pairing again.
+Every person links their OWN number on `/pair` and gets their OWN dashboard. You (owner) get `/admin`.
 
-Notes
-- Free plan: the disk is wiped on every redeploy/restart. Session is safe in Mongo, but `data/*.json`
-  (XP, welcome/goodbye text, warns, antilink and status settings) resets. A paid plan with a persistent disk
-  mounted at `/opt/render/project/src/data` keeps them.
-- Free web services sleep after 15 min idle. The built-in self-ping (index.js) prevents that; an external
-  pinger (UptimeRobot on `https://<app>.onrender.com/health`) makes it more reliable.
-- Downloaders: yt-dlp downloads itself into `bin/` at start. YouTube from datacenter IPs often asks for login -> add `cookies.txt`.
+1. Push this project to GitHub (`.env`, `data/`, `bin/` are git-ignored).
+2. MongoDB Atlas (free): create a cluster + DB user, allow `0.0.0.0/0`, copy the connection string -> `MONGODB_URI`.
+3. Render -> New -> **Blueprint** -> pick the repo (reads `render.yaml`).
+4. Env vars: `OWNER_NUMBER`, `ADMIN_PASSWORD` (long!), `MONGODB_URI`. `SESSION_SECRET` is generated for you.
+5. Deploy, then share `https://<app>.onrender.com/pair`.
 
-## Web panel
-- `/` status, `/health` keep-alive.
-- `/pair` pairing code page (needs `ADMIN_PASSWORD` unless `PAIR_PUBLIC=true`).
-- `/admin` dashboard: status, public/private mode, restart, logout WhatsApp (re-pair), send message,
-  group list, commands, live logs. 6 wrong passwords = 10 min lockout. Use a long password.
+## For users
+- `/pair`: enter your number -> 8-character code, or switch to the QR tab and scan it.
+  WhatsApp -> Linked devices -> Link a device. When it links you land on your dashboard.
+- `/dashboard`: later logins: enter your number, a 6-digit code arrives in your own WhatsApp chat.
+  You only see and control YOUR session: mode, prefix, restart, groups, send message, your logs, unlink.
+
+## For you (owner)
+- `/admin`: all sessions (restart, make public/private, remove), open/close public pairing, max sessions,
+  send via any session, groups of any session, all logs.
+- A session made with the old single-session setup (`SESSION_ID`, default `main`) is kept and shows as "legacy".
+  Its owner rights still follow `OWNER_NUMBER`.
+
+## Notes
+- Each linked number costs roughly 40-80 MB RAM. Render free has 512 MB, so keep `MAX_SESSIONS` around 5-10.
+- Sessions live in Mongo (ids start with `dtx_`) so they survive redeploys. Per-user settings stored in files
+  (XP, welcome/goodbye, warns, antilink) live in `data/sessions/<id>/` and reset on the free plan's redeploys.
+  Mode and prefix are saved in Mongo and survive.
+- Free web services sleep after 15 min idle; the self-ping in `index.js` prevents that.
+- YouTube/Instagram from datacenter IPs may ask for login -> add `cookies.txt`.
